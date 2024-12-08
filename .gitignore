@@ -4,3 +4,5 @@ vpn_server.ovpn
 yolov4-tiny.cfg
 yolov4-tiny.weights
 test.png
+test_gliff.py
+/.idea
