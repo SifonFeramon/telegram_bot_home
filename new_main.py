@@ -13,6 +13,7 @@ import datetime
 import threading
 import numpy as np
 import argparse
+import json
 
 #from telegram.ext import Updater, CommandHandler, MessageHandler#, Filters
 from telegram import Update
@@ -286,6 +287,17 @@ async def echo(update, context):
         print(update.message.text, update.message.text.split('pic__')[-1])
         relevant_pic = await find_relevant_picture(update.message.text.split('pic__')[-1])
         await update.effective_message.reply_photo(relevant_pic, caption="Воть")
+    elif "draw__pic" in update.message.text:
+        print("start generate pic by glif\n")
+        subject_draw =  update.message.text.split("draw__pic")[-1]
+        response = requests.post(
+            "https://simple-api.glif.app",
+            json={"id": "cm38r0h5n000b11sak4tv9xwv", "inputs": [subject_draw]},
+            headers={"Authorization": glif_token},
+        )
+        print("end generate pic by glif\n")
+        parsed = json.loads(response.content)
+        await update.effective_message.reply_photo(parsed["outputFull"]['value'], caption="Воть")
     else:
         ...
 
@@ -320,7 +332,8 @@ if __name__ == '__main__':
     parser.add_argument("-client_id", dest="client_id", type=str, required=True)    
     parser.add_argument("-client_secret", dest="client_secret", type=str, required=True)    
     parser.add_argument("-cap_home_url", dest="cap_home_url", type=str, required=True)    
-    parser.add_argument("-home_chat_id", dest="home_chat_id", type=str, required=True)    
+    parser.add_argument("-home_chat_id", dest="home_chat_id", type=str, required=True)
+    parser.add_argument("-glif_token", dest="glif_token", type=str, required=True)
     
     args = parser.parse_args()
     
@@ -331,6 +344,7 @@ if __name__ == '__main__':
 
     cap_home_url = args.cap_home_url
     home_chat_id = args.home_chat_id
+    glif_token = args.glif_token
     
     print(args)
     
