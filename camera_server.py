@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Camera Server - REST API for capturing images from RTSP camera stream.
+Camera Server - REST API for capturing images from RTSP camera streams.
 
-This server connects to an IP camera via RTSP and exposes HTTP endpoints
-to capture images on demand.
+This server connects to IP cameras via RTSP and exposes HTTP endpoints
+to capture images on demand. Supports multiple cameras.
 
 Usage:
-    python camera_server.py -rtsp_url "rtsp://camera_ip:554/stream" -port 8080
+    python camera_server.py -rtsp_url "rtsp://camera1_ip:554/stream" -rtsp_url_2 "rtsp://camera2_ip:554/stream" -port 8080
 """
 
 import argparse
@@ -36,6 +36,7 @@ app = FastAPI(
 
 # Global configuration
 rtsp_url: str = ""
+rtsp_url_2: str = ""
 camera_lock = threading.Lock()
 
 
@@ -101,34 +102,46 @@ class CameraManager:
                 self._cap = None
 
 
-# Global camera manager instance
+# Global camera manager instances
 camera_manager: Optional[CameraManager] = None
+camera_manager_2: Optional[CameraManager] = None
 
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize camera manager on startup."""
-    global camera_manager
+    """Initialize camera managers on startup."""
+    global camera_manager, camera_manager_2
     camera_manager = CameraManager(rtsp_url)
+    logger.info(f"Camera 1 initialized: {rtsp_url}")
+    
+    if rtsp_url_2:
+        camera_manager_2 = CameraManager(rtsp_url_2)
+        logger.info(f"Camera 2 initialized: {rtsp_url_2}")
+    
     logger.info("Camera server started")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Release camera resources on shutdown."""
-    global camera_manager
+    global camera_manager, camera_manager_2
     if camera_manager:
         camera_manager.release()
+    if camera_manager_2:
+        camera_manager_2.release()
     logger.info("Camera server stopped")
 
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {
+    result = {
         "status": "healthy",
-        "rtsp_url": rtsp_url[:50] + "..." if len(rtsp_url) > 50 else rtsp_url
+        "camera_1": rtsp_url[:50] + "..." if len(rtsp_url) > 50 else rtsp_url
     }
+    if rtsp_url_2:
+        result["camera_2"] = rtsp_url_2[:50] + "..." if len(rtsp_url_2) > 50 else rtsp_url_2
+    return result
 
 
 @app.get("/capture")
@@ -167,7 +180,7 @@ async def capture_image(quality: int = 85):
 @app.get("/capture/png")
 async def capture_image_png():
     """
-    Capture current frame from camera and return as PNG image.
+    Capture current frame from camera 1 and return as PNG image.
     
     Returns:
         PNG image bytes
@@ -192,16 +205,84 @@ async def capture_image_png():
     )
 
 
-def main():
-    global rtsp_url
+@app.get("/capture/2")
+async def capture_image_camera2(quality: int = 85):
+    """
+    Capture current frame from camera 2 and return as JPEG image.
     
-    parser = argparse.ArgumentParser(description="Camera Server - REST API for RTSP camera")
+    Args:
+        quality: JPEG quality (1-100), default 85
+    
+    Returns:
+        JPEG image bytes
+    """
+    if camera_manager_2 is None:
+        raise HTTPException(status_code=503, detail="Camera 2 not initialized")
+    
+    frame = camera_manager_2.capture_frame()
+    if frame is None:
+        raise HTTPException(status_code=503, detail="Failed to capture frame from camera 2")
+    
+    # Encode frame as JPEG
+    quality = max(1, min(100, quality))
+    encode_params = [cv2.IMWRITE_JPEG_QUALITY, quality]
+    success, encoded = cv2.imencode('.jpg', frame, encode_params)
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to encode image")
+    
+    return Response(
+        content=encoded.tobytes(),
+        media_type="image/jpeg",
+        headers={"Content-Disposition": "inline; filename=capture2.jpg"}
+    )
+
+
+@app.get("/capture/2/png")
+async def capture_image_camera2_png():
+    """
+    Capture current frame from camera 2 and return as PNG image.
+    
+    Returns:
+        PNG image bytes
+    """
+    if camera_manager_2 is None:
+        raise HTTPException(status_code=503, detail="Camera 2 not initialized")
+    
+    frame = camera_manager_2.capture_frame()
+    if frame is None:
+        raise HTTPException(status_code=503, detail="Failed to capture frame from camera 2")
+    
+    # Encode frame as PNG
+    success, encoded = cv2.imencode('.png', frame)
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to encode image")
+    
+    return Response(
+        content=encoded.tobytes(),
+        media_type="image/png",
+        headers={"Content-Disposition": "inline; filename=capture2.png"}
+    )
+
+
+def main():
+    global rtsp_url, rtsp_url_2
+    
+    parser = argparse.ArgumentParser(description="Camera Server - REST API for RTSP cameras")
     parser.add_argument(
         "-rtsp_url", 
         dest="rtsp_url", 
         type=str, 
         required=True,
-        help="RTSP URL of the camera (e.g., rtsp://192.168.1.100:554/stream)"
+        help="RTSP URL of camera 1 (e.g., rtsp://192.168.1.100:554/stream)"
+    )
+    parser.add_argument(
+        "-rtsp_url_2", 
+        dest="rtsp_url_2", 
+        type=str, 
+        default="",
+        help="RTSP URL of camera 2 (optional, e.g., rtsp://192.168.1.101:554/stream)"
     )
     parser.add_argument(
         "-port", 
@@ -220,9 +301,12 @@ def main():
     
     args = parser.parse_args()
     rtsp_url = args.rtsp_url
+    rtsp_url_2 = args.rtsp_url_2
     
     logger.info(f"Starting camera server on {args.host}:{args.port}")
-    logger.info(f"RTSP URL: {rtsp_url}")
+    logger.info(f"Camera 1 RTSP URL: {rtsp_url}")
+    if rtsp_url_2:
+        logger.info(f"Camera 2 RTSP URL: {rtsp_url_2}")
     
     uvicorn.run(app, host=args.host, port=args.port)
 

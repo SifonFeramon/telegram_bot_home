@@ -5,4 +5,5 @@ yolov4-tiny.cfg
 yolov4-tiny.weights
 test.png
 test_gliff.py
+run_server.bat
 /.idea

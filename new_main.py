@@ -48,23 +48,30 @@ layer_name = model.getLayerNames()
 layer_name = [layer_name[i - 1] for i in model.getUnconnectedOutLayers()]
 
 
-async def get_camera_image(server_url: str):
+async def get_camera_image(server_url: str, camera_id: int = 1):
     """
     Fetch image from camera server via HTTP.
     
     Args:
         server_url: Base URL of the camera server (e.g., http://192.168.1.100:8080)
+        camera_id: Camera number (1 or 2), default 1
     
     Returns:
         Image bytes if successful, None otherwise
     """
     try:
+        # Build endpoint URL based on camera_id
+        if camera_id == 1:
+            endpoint = f"{server_url}/capture"
+        else:
+            endpoint = f"{server_url}/capture/{camera_id}"
+        
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"{server_url}/capture", timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            async with session.get(endpoint, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                 if resp.status == 200:
                     return await resp.read()
                 else:
-                    logger.error(f"Camera server returned status {resp.status}")
+                    logger.error(f"Camera server returned status {resp.status} for camera {camera_id}")
                     return None
     except aiohttp.ClientError as e:
         logger.error(f"Failed to connect to camera server: {e}")
@@ -296,12 +303,22 @@ async def echo(update, context):
         if user['id'] not in [209255151, 978949705]:
             await update.effective_message.reply_text("Похоже вы не живёте в этом доме!\n") 
         else:
-            # Fetch image from camera server
+            # Fetch image from camera server (camera 1)
             image_bytes = await get_camera_image(camera_server_url)
             if image_bytes is not None:
-                await update.effective_message.reply_photo(io.BytesIO(image_bytes), caption="Комната")
+                await update.effective_message.reply_photo(io.BytesIO(image_bytes), caption="Комната 1")
             else:
-                await update.effective_message.reply_text("Не удалось получить изображение с камеры") 
+                await update.effective_message.reply_text("Не удалось получить изображение с камеры 1")
+    elif update.message.text == "view_home_2":
+        if user['id'] not in [209255151, 978949705]:
+            await update.effective_message.reply_text("Похоже вы не живёте в этом доме!\n") 
+        else:
+            # Fetch image from camera server (camera 2)
+            image_bytes = await get_camera_image(camera_server_url, camera_id=2)
+            if image_bytes is not None:
+                await update.effective_message.reply_photo(io.BytesIO(image_bytes), caption="Комната 2")
+            else:
+                await update.effective_message.reply_text("Не удалось получить изображение с камеры 2")
     elif "pic__" in update.message.text:
         print(update.message.text, update.message.text.split('pic__')[-1])
         relevant_pic = await find_relevant_picture(update.message.text.split('pic__')[-1])
