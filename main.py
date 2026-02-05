@@ -338,7 +338,7 @@ def new_main(args):
     application = Application.builder().token(args.token).build()
     job_queue =  application.job_queue
 
-    job_start_day = job_queue.run_daily(good_morning_message, datetime.time(hour=9,minute=0, tzinfo=pytz.timezone("Europe/Moscow")), days=(0, 1, 2, 3, 4, 5, 6))
+    job_start_day = job_queue.run_daily(good_morning_message, datetime.time(hour=9,minute=1, tzinfo=pytz.timezone("Europe/Moscow")), days=(0, 1, 2, 3, 4, 5, 6))
     job_birthdays = job_queue.run_daily(days_birthdays, datetime.time(hour=23,minute=40, tzinfo=pytz.timezone("Europe/Moscow")), days=(0, 1, 2, 3, 4, 5, 6))
     job_end_day = job_queue.run_daily(good_night_message, datetime.time(hour=23,minute=59, tzinfo=pytz.timezone("Europe/Moscow")), days=(0, 1, 2, 3, 4, 5, 6))
     job_check_people = job_queue.run_repeating(check_people, interval=180, first=10) 
