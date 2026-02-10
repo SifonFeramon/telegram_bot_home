@@ -233,7 +233,31 @@ async def check_people(context):
     logger.info("End check people in frame")
 
 
-def google_request(update, i_text):
+def get_info_day_length():
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.82 Safari/537.36"
+    }
+
+    full_page = requests.get(r"https://world-weather.ru/pogoda/russia/rostov_na_donu/sunrise/", headers=headers)
+    soup = BeautifulSoup(full_page.text, 'html.parser')
+    sunset_box = soup.findAll("div", {"class": "sunset-box"})
+    length_sunday = soup.findAll("div", {"class": "sunset-box-now day-length"})
+    up_sun = sunset_box[0].text.split(u'Время')[1][-5:]
+    down_sun = sunset_box[0].text.split(u'Время')[2].split(' \n')[0][-5:]
+    length_day = length_sunday[0].text[-28:]
+
+    return up_sun, down_sun, length_day
+
+async def time_sun_message(context):
+    try:
+        sun_up, sun_down, l_day = get_info_day_length()
+        message_send = u'Время восхода ' + str(sun_up) + '  ' + u'Время заката ' + str(sun_down) + '\n' + l_day
+        await context.bot.send_message(chat_id=home_chat_id, text=message_send)
+    except Exception as error_value:
+        print(f"Unexpected error in time_sun_message {error_value=}\n")
+
+
+async def google_request(update, i_text):
 
     text_requests = {'morning': 'https://www.google.com/search?q=%D0%B2%D0%BE%D1%81%D1%85%D0%BE%D0%B4+%D1%81%D0%BE%D0%BB%D0%BD%D1%86%D0%B0+%D0%B2+%D1%80%D0%BE%D1%81%D1%82%D0%BE%D0%B2%D0%B5-%D0%BD%D0%B0-%D0%B4%D0%BE%D0%BD%D1%83&oq=%D0%B2%D0%BE%D1%81%D1%85%D0%BE%D0%B4+%D0%B2+%D0%A0%D0%BE%D1%81%D1%82%D0%BE%D0%B2%D0%B5&aqs=chrome.2.69i57j0i22i30l2.5436j0j7&sourceid=chrome&ie=UTF-8',
                      'night': 'https://www.google.com/search?q=%D0%B7%D0%B0%D1%85%D0%BE%D0%B4+%D1%81%D0%BE%D0%BB%D0%BD%D1%86%D0%B0+%D0%B2+%D1%80%D0%BE%D1%81%D1%82%D0%BE%D0%B2%D0%B5-%D0%BD%D0%B0-%D0%B4%D0%BE%D0%BD%D1%83&ei=B6aPY8zRJYLRrgTPk7OYBg&ved=0ahUKEwiM8aa56uX7AhWCqIsKHc_JDGMQ4dUDCA8&uact=5&oq=%D0%B7%D0%B0%D1%85%D0%BE%D0%B4+%D1%81%D0%BE%D0%BB%D0%BD%D1%86%D0%B0+%D0%B2+%D1%80%D0%BE%D1%81%D1%82%D0%BE%D0%B2%D0%B5-%D0%BD%D0%B0-%D0%B4%D0%BE%D0%BD%D1%83&gs_lcp=Cgxnd3Mtd2l6LXNlcnAQAzIKCAAQgAQQRhD-AToKCAAQRxDWBBCwAzoGCAAQBxAeOgcIABCABBANOgwIABCABBANEEYQ_gFKBAhBGABKBAhGGABQughY5xFg9BVoAnABeACAAU6IAbMDkgEBNpgBAKABAcgBCMABAQ&sclient=gws-wiz-serp'}
@@ -323,9 +347,10 @@ async def echo(update, context):
         print(update.message.text, update.message.text.split('pic__')[-1])
         relevant_pic = await find_relevant_picture(update.message.text.split('pic__')[-1])
         await update.effective_message.reply_photo(relevant_pic, caption="Воть")
+    elif "google__" in update.message.text:
+        await google_request(update, update.message.text.split('google__')[-1])
     else:
         ...
-
 
 def error(update, context):
     """Log Errors caused by Updates."""
@@ -339,6 +364,7 @@ def new_main(args):
     job_queue =  application.job_queue
 
     job_start_day = job_queue.run_daily(good_morning_message, datetime.time(hour=9,minute=1, tzinfo=pytz.timezone("Europe/Moscow")), days=(0, 1, 2, 3, 4, 5, 6))
+    job_length_day = job_queue.run_daily(time_sun_message, datetime.time(hour=9, minute=2, tzinfo=pytz.timezone("Europe/Moscow")), days=(0, 1, 2, 3, 4, 5, 6))
     job_birthdays = job_queue.run_daily(days_birthdays, datetime.time(hour=23,minute=40, tzinfo=pytz.timezone("Europe/Moscow")), days=(0, 1, 2, 3, 4, 5, 6))
     job_end_day = job_queue.run_daily(good_night_message, datetime.time(hour=23,minute=59, tzinfo=pytz.timezone("Europe/Moscow")), days=(0, 1, 2, 3, 4, 5, 6))
     job_check_people = job_queue.run_repeating(check_people, interval=180, first=10) 
