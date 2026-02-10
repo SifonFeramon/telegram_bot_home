@@ -154,7 +154,7 @@ def time_for_event(key_word):
 async def good_morning_message(context):
 
     try:
-        await context.bot.send_message(chat_id=home_chat_id, text='Time give up!')
+        await context.bot.send_message(chat_id=home_chat_id, text='Time wake up!')
         pic_relevant = await find_relevant_picture("sunrise")
         await context.bot.send_photo(chat_id=home_chat_id, photo=pic_relevant, caption="Пора вставать!")
     except:
