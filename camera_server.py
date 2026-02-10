@@ -70,6 +70,7 @@ class CameraManager:
     
     def capture_frame(self) -> Optional[np.ndarray]:
         """Capture a single frame from the camera."""
+        self._connect()
         with self._lock:
             # Return cached frame if still valid
             current_time = time.time()
